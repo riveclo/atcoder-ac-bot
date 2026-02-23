@@ -167,7 +167,7 @@ class AtCoderBot(discord.Client):
                                 type_char = m.group(1)[0].upper()  # B, R, G, H
                                 display_name = f"A{type_char}C{m.group(2)}"
                                 # AHC/ABCなどのIDを小文字で構成 (例: ahc001, abc300)
-                                contest_id_url = f"{m.group(1)[0].lower()}c{m.group(2)}"
+                                contest_id_url = f"a{m.group(1)[0].lower()}c{m.group(2)}"
                                 short_name = f"[{display_name}](https://atcoder.jp/contests/{contest_id_url})"
                             else:
                                 # 企業コンテスト等の場合
