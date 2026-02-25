@@ -713,7 +713,7 @@ async def preview(interaction: discord.Interaction, type: str):
     await interaction.followup.send(content=f"**Preview: {type}**", embed=e)
 
 
-@bot.tree.command(name="recent_contests", description="過去1週間のコンテスト告知を表示(テスト用)")
+@bot.tree.command(name="recent_contests", description="過去1週間のコンテスト告知を表示")
 async def recent_contests(interaction: discord.Interaction):
     try:
         await interaction.response.defer()
