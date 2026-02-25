@@ -255,25 +255,39 @@ class AtCoderBot(discord.Client):
             async with session.get(post_url, timeout=10) as resp:
                 if resp.status != 200: return info
                 raw_html = await resp.text()
-                # 1. &lt;a ... &gt; などの特殊文字を普通の < > に戻す
+                # HTMLエンティティ(&lt;等)をデコード
                 decoded_html = html.unescape(raw_html)
                 soup = BeautifulSoup(decoded_html, 'html.parser')
                 post_body = soup.find('div', class_='blog-post')
                 
                 if post_body:
-                    # 2. タグを無視してテキストのみ抽出（行ごとに分ける）
-                    text = post_body.get_text("\n")
-                    for line in text.splitlines():
-                        line = line.strip()
-                        # 3. ハイフンやスペースを除去しつつキーワード判定
-                        if "Writer" in line and "：" in line:
-                            info["writer"] = line.split("：", 1)[-1].strip()
-                        elif "Tester" in line and "：" in line:
-                            info["tester"] = line.split("：", 1)[-1].strip()
-                        elif "配点" in line and "：" in line:
-                            info["points"] = line.split("：", 1)[-1].strip()
-        except:
-            pass
+                    # get_textではなく、要素の並びを直接ループして解析
+                    content_text = post_body.get_text("\n", strip=True)
+                    lines = content_text.splitlines()
+                    
+                    for line in lines:
+                        # 全角・半角の両方のコロンに対応し、前後の不要な文字を掃除
+                        clean_line = line.replace(':', '：').lstrip('- ').strip()
+                        
+                        if 'Writer' in clean_line and '：' in clean_line:
+                            info["writer"] = clean_line.split('：', 1)[-1].strip()
+                        elif 'Tester' in clean_line and '：' in clean_line:
+                            info["tester"] = clean_line.split('：', 1)[-1].strip()
+                        elif '配点' in clean_line and '：' in clean_line:
+                            info["points"] = clean_line.split('：', 1)[-1].strip()
+                            
+                    # もし上記で見つからない場合(HTMLが特殊な連結をしている場合)の予備策
+                    if info["writer"] == "不明":
+                        # Writerという文字列を含む要素を探す
+                        target = post_body.find(string=re.compile(r'Writer'))
+                        if target:
+                            # その親要素や兄弟要素からテキストを合成
+                            parent_text = target.parent.get_text(strip=True)
+                            if '：' in parent_text:
+                                info["writer"] = parent_text.split('：', 1)[-1].strip()
+
+        except Exception as e:
+            print(f"❌ 詳細取得エラー: {e}")
         return info
 
 
