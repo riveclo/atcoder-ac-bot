@@ -40,6 +40,7 @@ class AtCoderBot(discord.Client):
         self.problems_map = {}
         self.diff_map = {}
         self.sent_notifications = set()
+        self.pending_contests = {}
         
         try:
             scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
@@ -120,6 +121,8 @@ class AtCoderBot(discord.Client):
         except: pass
         self.check_submissions.start()
         self.auto_contest_scheduler.start()
+        # 既存の scheduler を開始（daily_schedule_update は scheduler 内で呼ばれます）
+        self.auto_contest_scheduler.start() 
         await self.tree.sync()
 
     # --- AtCoderBotクラス内に追加 ---
@@ -232,7 +235,80 @@ class AtCoderBot(discord.Client):
         except Exception as e:
             print(f"Error fetching {mode} data for {atcoder_id}: {e}")
             return None
+
+    # --- 新規追加: 告知ページから詳細を抜く関数 ---
+    async def fetch_post_details(self, session, contest_id):
+        post_url = f"https://atcoder.jp/posts/{contest_id}_ja"
+        info = {"writer": "不明", "tester": "不明", "points": "未発表"}
+        try:
+            async with session.get(post_url, timeout=10) as resp:
+                if resp.status == 200:
+                    html = await resp.text()
+                    soup = BeautifulSoup(html, 'html.parser')
+                    post_body = soup.find('div', class_='blog-post')
+                    if post_body:
+                        text = post_body.get_text("\n")
+                        # 正規表現で抽出
+                        w = re.search(r'Writer：\s*(.*)', text)
+                        t = re.search(r'Tester：\s*(.*)', text)
+                        p = re.search(r'配点：\s*(.*)', text)
+                        if w: info["writer"] = w.group(1).strip()
+                        if t: info["tester"] = t.group(1).strip()
+                        if p: info["points"] = p.group(1).strip()
+        except: pass
+        return info
+
+    # --- 新規追加: 毎日6:00に予定を読み取るタスク ---
+    @tasks.loop(hours=24)
+    async def daily_schedule_update(self):
+        async with aiohttp.ClientSession() as session:
+            async with session.get("https://atcoder.jp/contests/?lang=ja") as resp:
+                if resp.status != 200: return
+                soup = BeautifulSoup(await resp.text(), 'html.parser')
             
+            table = soup.find('div', id='contest-table-upcoming')
+            if not table: return
+
+            now = datetime.now(JST)
+            for row in table.find_all('tr')[1:]:
+                cols = row.find_all('td')
+                if len(cols) < 4: continue
+                
+                # 時刻解析
+                time_str = cols[0].find('time').text
+                st_dt = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S%z').astimezone(JST)
+                
+                # ID取得
+                a_tag = cols[1].find('a')
+                c_id = a_tag['href'].split('/')[-1]
+                
+                # 24時間以内に開始されるコンテストのみ詳細を取得して予約
+                if 0 < (st_dt - now).total_seconds() <= 86400:
+                    details = await self.fetch_post_details(session, c_id)
+                    dur_str = cols[2].text.strip()
+                    # 予約リストに追加 (二重登録防止のため dict を使用)
+                    self.pending_contests[c_id] = {
+                        "name": a_tag.text.strip(),
+                        "url": f"https://atcoder.jp/contests/{c_id}",
+                        "start": st_dt,
+                        "end": st_dt + timedelta(minutes=self.parse_duration(dur_str)),
+                        "duration": dur_str,
+                        "rated": cols[3].text.strip(),
+                        "details": details,
+                        "sent": [] # 通知済みフラグを管理
+                    }
+
+    # --- 新規追加: 時間文字列のパース用 ---
+    def parse_duration(self, dur_str):
+        try:
+            if "日" in dur_str:
+                days = int(re.search(r'(\d+)', dur_str).group(1))
+                return days * 24 * 60
+            h, m = map(int, dur_str.split(':'))
+            return h * 60 + m
+        except: return 0
+
+    
     @tasks.loop(minutes=3)
     async def check_submissions(self):
         # セッションをループの外で作成（効率化）
@@ -486,76 +562,34 @@ class AtCoderBot(discord.Client):
                 
     @tasks.loop(minutes=1)
     async def auto_contest_scheduler(self):
-        # 現在時刻を1分単位で取得
-        now = datetime.now(JST).replace(second=0, microsecond=0)
-        
-        async with aiohttp.ClientSession() as session:
-            # 1. まず告知パネルから Writer/Tester/配点 情報を取得
-            recent_details = await self.fetch_recent_announcements(session)
-            
-            # 2. トップページ（日本語）を取得してテーブルを解析
-            async with session.get("https://atcoder.jp/home?lang=ja") as resp:
-                if resp.status != 200: return
-                soup = BeautifulSoup(await resp.text(), 'html.parser')
-                
-                # 「今後の予定」と「開催中」のテーブル両方をチェック
-                for table_id in ['contest-table-upcoming', 'contest-table-active']:
-                    container = soup.find('div', id=table_id)
-                    if not container: continue
-                    
-                    for row in container.find_all('tr')[1:]: # ヘッダーを飛ばす
-                        cols = row.find_all('td')
-                        if len(cols) < 4: continue
-                        
-                        try:
-                            # --- 時刻と時間の解析 ---
-                            time_tag = cols[0].find('time')
-                            if not time_tag: continue
-                            time_str = time_tag.text
-                            # 曜日(Sat)などを除去してパース
-                            clean_time = re.sub(r'\(.*?\)', '', time_str).strip()
-                            st_dt = datetime.strptime(clean_time, '%Y-%m-%d %H:%M:%S%z').astimezone(JST)
-                            
-                            # コンテスト時間（例: 01:40 -> 100分）を計算
-                            dur_str = cols[2].text.strip()
-                            h, m = map(int, dur_str.split(':'))
-                            duration_min = h * 60 + m
-                            en_dt = st_dt + timedelta(minutes=duration_min)
-                            
-                            # --- URLと詳細情報の紐付け ---
-                            name_tag = cols[1].find('a')
-                            if not name_tag: continue
-                            # URLを正規化（末尾のスラッシュを削除して一致率を上げる）
-                            raw_path = name_tag['href'].split('?')[0].rstrip('/')
-                            c_url = f"https://atcoder.jp{raw_path}"
-                            
-                            # 告知パネルから取った詳細を合体（なければ不明を入れる）
-                            details = recent_details.get(c_url, {"writer": "不明", "tester": "不明", "points": "未発表"})
-                            
-                            # --- 通知判定 ---
-                            diff_st = round((st_dt - now).total_seconds() / 60) # 開始まで
-                            diff_en = round((en_dt - now).total_seconds() / 60) # 終了まで
-                            rated = cols[3].text.strip() # レーティング対象範囲
-                            
-                            # 24時間前
-                            if diff_st == 1440:
-                                await self.broadcast_contest(name_tag.text, c_url, st_dt, duration_min, rated, "⏰ 24時間前", details)
-                            
-                            # 30分前
-                            elif diff_st == 30:
-                                await self.broadcast_contest(name_tag.text, c_url, st_dt, duration_min, rated, "⚠️ 30分前", details)
-                            
-                            # 開始
-                            elif diff_st == 0:
-                                await self.broadcast_contest(name_tag.text, c_url, st_dt, duration_min, rated, "🚀 開始！", details, is_start=True)
-                            
-                            # 終了
-                            elif diff_en == 0:
-                                await self.broadcast_contest(name_tag.text, c_url, st_dt, duration_min, rated, "🏁 終了！", details)
+        now = datetime.now(JST)
+        # 毎日6:00にリストを更新する（初回や時間のズレ対策）
+        if now.hour == 6 and now.minute == 0:
+            await self.daily_schedule_update()
 
-                        except Exception as e:
-                            # 1つの行でエラーが出ても他の行の処理を続ける
-                            continue
+        for c_id, data in list(self.pending_contests.items()):
+            diff_st = (data['start'] - now).total_seconds() / 60
+            diff_en = (data['end'] - now).total_seconds() / 60
+            
+            # 通知判定 (sentリストに入れて二重送信を防止)
+            # 24時間前
+            if 1439 <= diff_st <= 1440 and "24h" not in data['sent']:
+                await self.broadcast_contest(data['name'], data['url'], data['start'], data['duration'], data['rated'], "⏰ 24時間前", data['details'])
+                data['sent'].append("24h")
+            # 15分前
+            elif 14 <= diff_st <= 15 and "15m" not in data['sent']:
+                await self.broadcast_contest(data['name'], data['url'], data['start'], data['duration'], data['rated'], "⚠️ 15分前", data['details'])
+                data['sent'].append("15m")
+            # 開始
+            elif -1 <= diff_st <= 0 and "start" not in data['sent']:
+                await self.broadcast_contest(data['name'], data['url'], data['start'], data['duration'], data['rated'], "🚀 開始！", data['details'], is_start=True)
+                data['sent'].append("start")
+            # 終了
+            elif -1 <= diff_en <= 0 and "end" not in data['sent']:
+                await self.broadcast_contest(data['name'], data['url'], data['start'], data['duration'], data['rated'], "🏁 終了！", data['details'])
+                data['sent'].append("end")
+                # 終了したコンテストはリストから削除
+                del self.pending_contests[c_id]
 
 bot = AtCoderBot()
 
