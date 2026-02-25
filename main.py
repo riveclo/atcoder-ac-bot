@@ -120,7 +120,6 @@ class AtCoderBot(discord.Client):
                     if r.status == 200: self.diff_map = await r.json()
         except: pass
         self.check_submissions.start()
-        self.auto_contest_scheduler.start()
         # 既存の scheduler を開始（daily_schedule_update は scheduler 内で呼ばれます）
         self.auto_contest_scheduler.start() 
         await self.tree.sync()
