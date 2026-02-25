@@ -49,7 +49,7 @@ class AtCoderBot(discord.Client):
             self.sheet = self.gc.open(SHEET_NAME)
         except Exception as e: print(f"⚠️ Sheetsエラー: {e}")
             
-def get_rated_color(self, rated_str):
+    def get_rated_color(self, rated_str):
         if not rated_str or rated_str in ["-", "Unrated"]:
             return 0x808080  # 灰色
         
@@ -75,8 +75,7 @@ def get_rated_color(self, rated_str):
                 return 0xFF8000 # 橙
                 
         return 0x808080 # デフォルト灰色
-
-
+        
     def save_to_sheets(self):
         try:
             ws_user = self.sheet.worksheet("users")
