@@ -251,22 +251,33 @@ class AtCoderBot(discord.Client):
     async def fetch_post_details(self, session, contest_id):
         post_url = f"https://atcoder.jp/posts/{contest_id}_ja"
         info = {"writer": "不明", "tester": "不明", "points": "未発表"}
+        headers = {"User-Agent": "Mozilla/5.0"}
+        
         try:
-            async with session.get(post_url, timeout=10) as resp:
+            async with session.get(post_url, timeout=10, headers=headers) as resp:
                 if resp.status != 200: return info
                 raw_html = await resp.text()
-                # HTMLエンティティ(&lt;等)をデコード
-                decoded_html = html.unescape(raw_html)
-                soup = BeautifulSoup(decoded_html, 'html.parser')
+                
+                # 1. BeautifulSoupで一度読み込み、blog-postの中身を取り出す
+                soup = BeautifulSoup(raw_html, 'html.parser')
                 post_body = soup.find('div', class_='blog-post')
                 
                 if post_body:
-                    # get_textではなく、要素の並びを直接ループして解析
-                    content_text = post_body.get_text("\n", strip=True)
-                    lines = content_text.splitlines()
+                    # 2. 【重要】中身の &lt; &gt; などを本物のタグにデコードする
+                    # これにより、&lt;a&gt; が <a> になり、タグ間のテキストを抽出しやすくなる
+                    import html
+                    inner_content = html.unescape(post_body.decode_contents())
                     
-                    for line in lines:
-                        # 全角・半角の両方のコロンに対応し、前後の不要な文字を掃除
+                    # 3. デコードしたHTMLを再度スープに入れてテキスト化する
+                    inner_soup = BeautifulSoup(inner_content, 'html.parser')
+                    
+                    # 4. 「- 」を改行に置き換えてから、行ごとに処理
+                    # ソース上の `- Writer：` などの構造を捉える
+                    text_lines = inner_soup.get_text("\n").splitlines()
+                    
+                    for line in text_lines:
+                        line = line.strip()
+                        # コロンを全角に統一し、行頭のハイフンを消す
                         clean_line = line.replace(':', '：').lstrip('- ').strip()
                         
                         if 'Writer' in clean_line and '：' in clean_line:
@@ -275,19 +286,10 @@ class AtCoderBot(discord.Client):
                             info["tester"] = clean_line.split('：', 1)[-1].strip()
                         elif '配点' in clean_line and '：' in clean_line:
                             info["points"] = clean_line.split('：', 1)[-1].strip()
-                            
-                    # もし上記で見つからない場合(HTMLが特殊な連結をしている場合)の予備策
-                    if info["writer"] == "不明":
-                        # Writerという文字列を含む要素を探す
-                        target = post_body.find(string=re.compile(r'Writer'))
-                        if target:
-                            # その親要素や兄弟要素からテキストを合成
-                            parent_text = target.parent.get_text(strip=True)
-                            if '：' in parent_text:
-                                info["writer"] = parent_text.split('：', 1)[-1].strip()
 
         except Exception as e:
-            print(f"❌ 詳細取得エラー: {e}")
+            print(f"❌ 詳細解析失敗: {e}")
+            
         return info
 
 
