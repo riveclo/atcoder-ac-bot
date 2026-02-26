@@ -250,45 +250,48 @@ class AtCoderBot(discord.Client):
 
     async def fetch_post_details(self, session, contest_id):
         post_url = f"https://atcoder.jp/posts/{contest_id}_ja"
-        info = {"writer": "不明", "tester": "不明", "points": "未発表"}
+        # 初期値を「解析中...」にして、何が起きているか見えるようにします
+        info = {"writer": "未取得", "tester": "未取得", "points": "未取得"}
         headers = {"User-Agent": "Mozilla/5.0"}
         
         try:
             async with session.get(post_url, timeout=10, headers=headers) as resp:
-                if resp.status != 200: return info
+                if resp.status != 200:
+                    return {"writer": f"Error:{resp.status}", "tester": "-", "points": "-"}
+                
                 raw_html = await resp.text()
                 
-                # 1. BeautifulSoupで一度読み込み、blog-postの中身を取り出す
-                soup = BeautifulSoup(raw_html, 'html.parser')
-                post_body = soup.find('div', class_='blog-post')
-                
-                if post_body:
-                    # 2. 【重要】中身の &lt; &gt; などを本物のタグにデコードする
-                    # これにより、&lt;a&gt; が <a> になり、タグ間のテキストを抽出しやすくなる
-                    import html
-                    inner_content = html.unescape(post_body.decode_contents())
-                    
-                    # 3. デコードしたHTMLを再度スープに入れてテキスト化する
-                    inner_soup = BeautifulSoup(inner_content, 'html.parser')
-                    
-                    # 4. 「- 」を改行に置き換えてから、行ごとに処理
-                    # ソース上の `- Writer：` などの構造を捉える
-                    text_lines = inner_soup.get_text("\n").splitlines()
-                    
-                    for line in text_lines:
-                        line = line.strip()
-                        # コロンを全角に統一し、行頭のハイフンを消す
-                        clean_line = line.replace(':', '：').lstrip('- ').strip()
-                        
-                        if 'Writer' in clean_line and '：' in clean_line:
-                            info["writer"] = clean_line.split('：', 1)[-1].strip()
-                        elif 'Tester' in clean_line and '：' in clean_line:
-                            info["tester"] = clean_line.split('：', 1)[-1].strip()
-                        elif '配点' in clean_line and '：' in clean_line:
-                            info["points"] = clean_line.split('：', 1)[-1].strip()
+                import html, re
+                # 1. HTMLの階層を無視して、中身のテキストだけを巨大な1行にする
+                # &lt; などを < に戻す
+                decoded_all = html.unescape(raw_html)
+                # 全てのタグをスペース1つに置換して、文字だけを繋げる
+                clean_all = re.sub(r'<[^>]+>', ' ', decoded_all)
+                # 改行や連続スペースを整理
+                clean_all = " ".join(clean_all.split())
+                # コロンを統一
+                clean_all = clean_all.replace(':', '：')
+
+                # 2. 「Writer：」から後ろ300文字くらいを強引に取ってみる
+                # どこまでが名前か判定せずに、とりあえず後ろを出す
+                w_match = re.search(r'Writer：\s*(.{1,200})', clean_all)
+                if w_match:
+                    # 次の項目っぽい単語が出るところで一応切る
+                    raw_val = re.split(r'Tester|配点|レーティング|皆様|コンテスト', w_match.group(1))[0]
+                    info["writer"] = raw_val.strip()
+
+                t_match = re.search(r'Tester：\s*(.{1,200})', clean_all)
+                if t_match:
+                    raw_val = re.split(r'Writer|配点|レーティング|皆様|コンテスト', t_match.group(1))[0]
+                    info["tester"] = raw_val.strip()
+
+                p_match = re.search(r'配点：\s*(.{1,200})', clean_all)
+                if p_match:
+                    raw_val = re.split(r'Writer|Tester|レーティング|皆様|コンテスト', p_match.group(1))[0]
+                    info["points"] = raw_val.strip()
 
         except Exception as e:
-            print(f"❌ 詳細解析失敗: {e}")
+            info["writer"] = f"解析失敗: {str(e)[:20]}"
             
         return info
 
