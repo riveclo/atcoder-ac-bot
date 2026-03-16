@@ -457,7 +457,7 @@ class AtCoderBot(discord.Client):
                 f"🔍 [解説を読む](https://atcoder.jp/contests/{sub['contest_id']}/editorial)")
         embed.description = desc
         dt = datetime.fromtimestamp(sub['epoch_second'], JST)
-        embed.set_footer(text=f"提出時刻 : {dt.strftime('%b %d, %Y (%a) %H:%M:%S')}")
+        embed.set_footer(text=f"提出日時 : {dt.strftime('%b %d, %Y (%a) %H:%M:%S')}")
         await channel.send(embed=embed)
 
     async def fetch_recent_announcements(self, session):
