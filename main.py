@@ -660,12 +660,12 @@ bot = AtCoderBot()
 
 @bot.tree.command(name="register", description="提出通知の登録")
 async def register(interaction: discord.Interaction, discord_user: discord.Member, atcoder_id: str, channel: discord.TextChannel, only_ac: bool):
-    try: await interaction.response.defer(ephemeral=True)
+    try: await interaction.response.defer()
     except: return
     info = {"guild_id": interaction.guild_id, "discord_user_id": discord_user.id, "atcoder_id": atcoder_id, "channel_id": channel.id, "only_ac": only_ac, "last_sub_id": 0}
     bot.user_data[f"{interaction.guild_id}_{atcoder_id}"] = info
     bot.save_to_sheets()
-    await interaction.followup.send(f"✅ `{atcoder_id}` さんの登録が完了しました。", ephemeral=True)
+    await interaction.followup.send(f"✅ `{atcoder_id}` さんの登録が完了しました。")
     async with aiohttp.ClientSession() as session: await bot.process_submissions(session, info, lookback_seconds=86400)
 
 @bot.tree.command(name="delete", description="提出通知の削除")
