@@ -450,14 +450,22 @@ class AtCoderBot(discord.Client):
         embed = discord.Embed(title=prob_title, url=f"https://atcoder.jp/contests/{sub['contest_id']}/tasks/{prob_id}", color=get_color(difficulty))
         embed.set_author(name=f"{user_name}", icon_url=user_icon)
         exec_time = sub.get('execution_time') or 0
-        desc = (f"user : [{atcoder_id}](https://atcoder.jp/users/{atcoder_id}) / result : {emoji} **[{res}]**\n"
+        desc = (f"user : [{atcoder_id}](https://atcoder.jp/users/{atcoder_id}) / result : {emoji} {res}\n"
                 f"difficulty : {difficulty if difficulty is not None else '---'} / {exec_time}ms / score : {int(sub['point'])}\n"
                 f"language : {sub['language']}\n\n"
                 f"📄 [{atcoder_id}さんの提出を見る](https://atcoder.jp/contests/{sub['contest_id']}/submissions/{sub['id']})\n"
                 f"🔍 [解説を読む](https://atcoder.jp/contests/{sub['contest_id']}/editorial)")
         embed.description = desc
         dt = datetime.fromtimestamp(sub['epoch_second'], JST)
-        embed.set_footer(text=f"提出日時 : {dt.strftime('%b %d, %Y (%a) %H:%M:%S')}")
+        
+        # --- ここから書き換え ---
+        week_days = ["月", "火", "水", "木", "金", "土", "日"]
+        day_str = week_days[dt.weekday()]
+        
+        # dt.month や dt.day を使うことで 04月 を 4月 にしています
+        timestamp_str = f"{dt.year}年{dt.month}月{dt.day}日 ({day_str}) {dt.strftime('%H:%M:%S')}"
+        embed.set_footer(text=f"提出日時 : {timestamp_str}")
+        # --- ここまで ---
         await channel.send(embed=embed)
 
     async def fetch_recent_announcements(self, session):
