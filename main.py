@@ -763,7 +763,7 @@ async def preview(interaction: discord.Interaction, type: str):
     # 既に一度 response を使っている場合は followup を使う
     await interaction.followup.send(content=f"**Preview: {type}**", embed=e)
 
-
+'''
 @bot.tree.command(name="recent_contests", description="過去1週間のコンテスト告知を表示")
 async def recent_contests(interaction: discord.Interaction):
     try:
@@ -824,6 +824,6 @@ async def recent_contests(interaction: discord.Interaction):
                 c['name'], c['url'], c['st'], c['dur'], c['rated'], c['details']
             )
             await interaction.followup.send(embed=embed)
-
+'''
 if __name__ == "__main__":
     keep_alive(); bot.run(os.getenv("DISCORD_TOKEN"))
