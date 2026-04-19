@@ -459,11 +459,9 @@ class AtCoderBot(discord.Client):
         dt = datetime.fromtimestamp(sub['epoch_second'], JST)
         
         # --- ここから書き換え ---
-        week_days = ["月", "火", "水", "木", "金", "土", "日"]
-        day_str = week_days[dt.weekday()]
+        # 曜日（day_str）の取得をなくし、フォーマットからも削除しました
+        timestamp_str = f"{dt.year}-{dt.month}-{dt.day} {dt.strftime('%H:%M:%S')}"
         
-        # dt.month や dt.day を使うことで 04月 を 4月 にしています
-        timestamp_str = f"{dt.year}年{dt.month}月{dt.day}日 ({day_str}) {dt.strftime('%H:%M:%S')}"
         embed.set_footer(text=f"提出日時 : {timestamp_str}")
         # --- ここまで ---
         await channel.send(embed=embed)
