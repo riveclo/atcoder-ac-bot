@@ -437,7 +437,7 @@ class AtCoderBot(discord.Client):
         prob_title = self.problems_map.get(prob_id, prob_id)
         difficulty = self.diff_map.get(prob_id, {}).get('difficulty')
         user = self.get_user(info['discord_user_id'])
-        user_name = user.display_name if user else "Unknown"
+        user_name = user.name if user else "unknown"
         user_icon = user.display_avatar.url if user else None
         res = sub['result']
         emoji = EMOJI_MAP.get(res, "❓")
@@ -528,7 +528,7 @@ class AtCoderBot(discord.Client):
         profile_url = f"https://atcoder.jp/users/{d['atcoder_id']}?contestType={'heuristic' if d['mode'] == 'heur' else 'algorithm'}"
         
         # [アイコン] Discord名 / AtCoderID (Mode)
-        embed.set_author(name=f"{target.display_name} / {d['atcoder_id']} ({mode_label})", url=profile_url, icon_url=target.display_avatar.url)
+        embed.set_author(name=f"{target.name} / {d['atcoder_id']} ({mode_label})", url=profile_url, icon_url=target.display_avatar.url)
 
         status_value = (
             f"**現在の順位:** `{d['rank_all']}`\n"
