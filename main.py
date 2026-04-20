@@ -460,7 +460,7 @@ class AtCoderBot(discord.Client):
         
         # --- ここから書き換え ---
         # 曜日（day_str）の取得をなくし、フォーマットからも削除しました
-        timestamp_str = f"{dt.year}-{dt.month}-{dt.day} {dt.strftime('%H:%M:%S')}"
+        timestamp_str = f"%Y-%m-%d {dt.strftime('%H:%M:%S')}"
         
         embed.set_footer(text=f"提出日時 : {timestamp_str}")
         # --- ここまで ---
@@ -547,7 +547,7 @@ class AtCoderBot(discord.Client):
 
         now = datetime.now(JST)
         wd_ja = ["月", "火", "水", "木", "金", "土", "日"]
-        embed.set_footer(text=f"{now.strftime(f'%Y年%m月%d日({wd_ja[now.weekday()]}) %H:%M')} 時点")
+        embed.set_footer(text=f"{now.strftime(f'%Y-%m-%d %H:%M')} 時点")
         return embed
     
     def create_contest_embed(self, name, url, st, dur_min, rated, details, is_start=False):
