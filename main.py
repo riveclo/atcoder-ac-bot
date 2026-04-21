@@ -448,7 +448,10 @@ class AtCoderBot(discord.Client):
                 if d < limit: return color
             return 0xFF0000
         embed = discord.Embed(title=prob_title, url=f"https://atcoder.jp/contests/{sub['contest_id']}/tasks/{prob_id}", color=get_color(difficulty))
-        embed.set_author(name=f"{user_name}", icon_url=user_icon)
+        # Discordプロフィールのリンクを作成
+        user_link = f"https://discord.com/users/{info['discord_user_id']}"
+        # Authorにurl引数を追加
+        embed.set_author(name=f"{user_name}", icon_url=user_icon, url=user_link)
         exec_time = sub.get('execution_time') or 0
         desc = (f"user : [{atcoder_id}](https://atcoder.jp/users/{atcoder_id}) / result : {emoji} {res}\n"
                 f"difficulty : {difficulty if difficulty is not None else '---'} / {exec_time}ms / score : {int(sub['point'])}\n"
@@ -527,8 +530,8 @@ class AtCoderBot(discord.Client):
         embed = discord.Embed(color=get_color(d["rating"]))
         profile_url = f"https://atcoder.jp/users/{d['atcoder_id']}?contestType={'heuristic' if d['mode'] == 'heur' else 'algorithm'}"
         
-        # [アイコン] Discord名 / AtCoderID (Mode)
-        embed.set_author(name=f"{target.name} / {d['atcoder_id']} ({mode_label})", url=profile_url, icon_url=target.display_avatar.url)
+        # nameから target.display_name を削除
+        embed.set_author(name=f"{d['atcoder_id']} ({mode_label})", url=profile_url, icon_url=target.display_avatar.url)
 
         status_value = (
             f"**現在の順位:** `{d['rank_all']}`\n"
