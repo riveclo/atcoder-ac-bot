@@ -433,40 +433,61 @@ class AtCoderBot(discord.Client):
     async def send_ac_notification(self, info, sub):
         channel = self.get_channel(info['channel_id'])
         if not channel: return
-        prob_id, atcoder_id = sub['problem_id'], info['atcoder_id']
-        prob_title = self.problems_map.get(prob_id, prob_id)
+        
+        atcoder_id = info['atcoder_id']
+        prob_id = sub['problem_id'] # 例: "abc341_c"
+        
+        # --- 【追加・修正】problem_id から本来のコンテストIDと問題インデックスを抽出 ---
+        if "_" in prob_id:
+            original_contest_id, raw_index = prob_id.rsplit("_", 1)
+            problem_index = raw_index.upper() # "c" -> "C"
+        else:
+            original_contest_id = sub.get('contest_id', 'unknown')
+            problem_index = "?"
+
+        # 本来の問題名を取得 (例: "Takahashi Gets Lost")
+        raw_title = self.problems_map.get(prob_id, prob_id)
+        
+        # 表示用のタイトルを整形 (例: "C. Takahashi Gets Lost")
+        prob_title = f"{problem_index}. {raw_title}"
+        # -------------------------------------------------------------
+
         difficulty = self.diff_map.get(prob_id, {}).get('difficulty')
         user = self.get_user(info['discord_user_id'])
         user_name = user.name if user else "unknown"
         user_icon = user.display_avatar.url if user else None
         res = sub['result']
         emoji = EMOJI_MAP.get(res, "❓")
+
         def get_color(d):
             if d is None: return 0x808080
             colors = [(400, 0x808080), (800, 0x804000), (1200, 0x008000), (1600, 0x00C0C0), (2000, 0x0000FF), (2400, 0xFFFF00), (2800, 0xFF8000)]
             for limit, color in colors:
                 if d < limit: return color
             return 0xFF0000
-        embed = discord.Embed(title=prob_title, url=f"https://atcoder.jp/contests/{sub['contest_id']}/tasks/{prob_id}", color=get_color(difficulty))
-        # Discordプロフィールのリンクを作成
+
+        # リンクも正しい本来のコンテストID (original_contest_id) を使うように修正
+        embed = discord.Embed(
+            title=prob_title, 
+            url=f"https://atcoder.jp/contests/{original_contest_id}/tasks/{prob_id}", 
+            color=get_color(difficulty)
+        )
+        
         user_link = f"https://discord.com/users/{info['discord_user_id']}"
-        # Authorにurl引数を追加
         embed.set_author(name=f"{user_name}", icon_url=user_icon, url=user_link)
+        
         exec_time = sub.get('execution_time') or 0
         desc = (f"user : [{atcoder_id}](https://atcoder.jp/users/{atcoder_id}) / result : {emoji} {res}\n"
                 f"difficulty : {difficulty if difficulty is not None else '---'} / {exec_time}ms / score : {int(sub['point'])}\n"
                 f"language : {sub['language']}\n\n"
-                f"📄 [{atcoder_id}さんの提出を見る](https://atcoder.jp/contests/{sub['contest_id']}/submissions/{sub['id']})\n"
-                f"🔍 [解説を読む](https://atcoder.jp/contests/{sub['contest_id']}/editorial)")
+                f"📄 [{atcoder_id}さんの提出を見る](https://atcoder.jp/contests/{original_contest_id}/submissions/{sub['id']})\n"
+                f"🔍 [解説を読む](https://atcoder.jp/contests/{original_contest_id}/editorial)")
+        
         embed.description = desc
         dt = datetime.fromtimestamp(sub['epoch_second'], JST)
-        
-        # --- ここから書き換え ---
-        # 曜日（day_str）の取得をなくし、フォーマットからも削除しました
         timestamp_str = dt.strftime('%Y-%m-%d %H:%M:%S')
-        
         embed.set_footer(text=f"提出日時 : {timestamp_str}")
-        # --- ここまで ---
+        
         await channel.send(embed=embed)
 
     async def fetch_recent_announcements(self, session):
