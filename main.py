@@ -20,12 +20,12 @@ JST = timezone(timedelta(hours=9))
 SHEET_NAME = "AtCoderBot_DB"
 
 EMOJI_MAP = {
-    "AC": "<:atcoder_bot_AC:1463065663429021917>",
-    "WA": "<:atcoder_bot_WA:1463065707703959643>",
-    "TLE": "<:atcoder_bot_TLE:1463065790256382086>",
-    "RE": "<:atcoder_bot_RE:1463065747705172165>",
-    "CE": "<:atcoder_bot_CE:1463065865561051228>",
-    "MLE": "<:atcoder_bot_MLE:1463065831763349514>"
+    "AC": "<:atcoder_bot_AC:1545970895783207052>",
+    "WA": "<:atcoder_bot_WA:1545970973063512225>",
+    "TLE": "<:atcoder_bot_TLE:1545971120920993883>",
+    "RE": "<:atcoder_bot_RE:1545971023575392258>",
+    "CE": "<:atcoder_bot_CE:1545971066537779230>",
+    "MLE": "<:atcoder_bot_MLE:1545971155201032274>"
 }
 
 
