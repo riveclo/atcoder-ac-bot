@@ -437,7 +437,7 @@ class AtCoderBot(discord.Client):
         atcoder_id = info['atcoder_id']
         prob_id = sub['problem_id'] # 例: "abc341_c"
         
-        # --- 【追加・修正】problem_id から本来のコンテストIDと問題インデックスを抽出 ---
+        # problem_id から本来のコンテストIDと問題インデックスを抽出
         if "_" in prob_id:
             original_contest_id, raw_index = prob_id.rsplit("_", 1)
             problem_index = raw_index.upper() # "c" -> "C"
@@ -445,12 +445,14 @@ class AtCoderBot(discord.Client):
             original_contest_id = sub.get('contest_id', 'unknown')
             problem_index = "?"
 
-        # 本来の問題名を取得 (例: "Takahashi Gets Lost")
+        # --- 【修正】元のタイトルから先頭の "F. " などの文字を正規表現で削除する ---
         raw_title = self.problems_map.get(prob_id, prob_id)
+        # 例: "F. Takahashi Gets Lost" から先頭の英字+ドット+スペースを消す
+        clean_title = re.sub(r'^[A-Z0-9]+\.\s*', '', raw_title)
         
-        # 表示用のタイトルを整形 (例: "C. Takahashi Gets Lost")
-        prob_title = f"{problem_index}. {raw_title}"
-        # -------------------------------------------------------------
+        # 正しいインデックスを付与して整形 (例: "C. Takahashi Gets Lost")
+        prob_title = f"{problem_index}. {clean_title}"
+        # ------------------------------------------------------------------
 
         difficulty = self.diff_map.get(prob_id, {}).get('difficulty')
         user = self.get_user(info['discord_user_id'])
@@ -466,7 +468,6 @@ class AtCoderBot(discord.Client):
                 if d < limit: return color
             return 0xFF0000
 
-        # リンクも正しい本来のコンテストID (original_contest_id) を使うように修正
         embed = discord.Embed(
             title=prob_title, 
             url=f"https://atcoder.jp/contests/{original_contest_id}/tasks/{prob_id}", 
